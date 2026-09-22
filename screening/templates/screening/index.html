@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Border GuardX | AI Document Screening</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background:
+                radial-gradient(
+                    circle at top left,
+                    #102a43 0%,
+                    #06111f 40%,
+                    #020812 100%
+                );
+            color: #eaf6ff;
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+
+            background-image:
+                linear-gradient(
+                    rgba(0, 212, 255, 0.035) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(0, 212, 255, 0.035) 1px,
+                    transparent 1px
+                );
+
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        .container {
+            width: 92%;
+            max-width: 1250px;
+            margin: auto;
+        }
+
+        /* =====================================================
+           HEADER
+        ===================================================== */
+
+        header {
+            padding: 25px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+
+            background: rgba(0,212,255,0.12);
+            border: 1px solid rgba(0,212,255,0.25);
+
+            font-size: 25px;
+        }
+
+        .brand h1 {
+            font-size: 25px;
+            letter-spacing: 0.5px;
+        }
+
+        .brand p {
+            color: #8ba8bd;
+            margin-top: 4px;
+            font-size: 13px;
+        }
+
+        .online {
+            padding: 9px 15px;
+            border-radius: 30px;
+
+            color: #6dffb2;
+
+            background: rgba(43, 255, 145, 0.08);
+            border: 1px solid rgba(43,255,145,0.2);
+
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        /* =====================================================
+           MAIN
+        ===================================================== */
+
+        main {
+            padding: 35px 0 60px;
+        }
+
+        .hero {
+            margin-bottom: 25px;
+        }
+
+        .hero h2 {
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        .hero p {
+            color: #91a9ba;
+            line-height: 1.6;
+        }
+
+        /* =====================================================
+           CARD
+        ===================================================== */
+
+        .card {
+            background: rgba(8, 22, 37, 0.78);
+
+            border: 1px solid rgba(255,255,255,0.08);
+
+            border-radius: 18px;
+
+            padding: 25px;
+
+            margin-bottom: 22px;
+
+            box-shadow:
+                0 20px 60px rgba(0,0,0,0.25);
+
+            backdrop-filter: blur(12px);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            font-size: 19px;
+
+            margin-bottom: 8px;
+        }
+
+        .section-description {
+            color: #8ba8bd;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        /* =====================================================
+           UPLOAD
+        ===================================================== */
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .upload-box {
+            border: 1px dashed rgba(0,212,255,0.35);
+
+            border-radius: 14px;
+
+            padding: 22px;
+
+            background: rgba(0,212,255,0.035);
+        }
+
+        .upload-box label {
+            display: block;
+
+            font-size: 14px;
+            font-weight: bold;
+
+            margin-bottom: 10px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+
+            padding: 12px;
+
+            border-radius: 10px;
+
+            background: #071522;
+            color: #b9d0df;
+
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .upload-note {
+            color: #7892a5;
+            font-size: 12px;
+
+            margin-top: 10px;
+
+            line-height: 1.5;
+        }
+
+        .button-area {
+            margin-top: 20px;
+        }
+
+        .scan-button {
+            width: 100%;
+
+            padding: 15px;
+
+            border: none;
+            border-radius: 12px;
+
+            background: linear-gradient(
+                135deg,
+                #00c6ff,
+                #0072ff
+            );
+
+            color: white;
+
+            font-size: 15px;
+            font-weight: bold;
+
+            cursor: pointer;
+
+            transition: 0.2s;
+        }
+
+        .scan-button:hover {
+            transform: translateY(-1px);
+
+            box-shadow:
+                0 10px 30px rgba(0,114,255,0.25);
+        }
+
+        /* =====================================================
+           DOCUMENT DATA
+        ===================================================== */
+
+        .data-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 12px;
+        }
+
+        .data-item {
+            padding: 17px;
+
+            background: rgba(255,255,255,0.035);
+
+            border:
+                1px solid rgba(255,255,255,0.07);
+
+            border-radius: 12px;
+        }
+
+        .data-label {
+            color: #7892a5;
+
+            font-size: 11px;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.8px;
+
+            margin-bottom: 7px;
+        }
+
+        .data-value {
+            font-size: 15px;
+
+            font-weight: bold;
+
+            color: #edf9ff;
+
+            word-break: break-word;
+        }
+
+        /* =====================================================
+           STATUS
+        ===================================================== */
+
+        .status-box {
+            padding: 18px;
+
+            border-radius: 12px;
+
+            background: rgba(255,255,255,0.035);
+
+            border:
+                1px solid rgba(255,255,255,0.07);
+        }
+
+        .status-title {
+            font-size: 15px;
+
+            font-weight: bold;
+
+            margin-bottom: 8px;
+        }
+
+        .status-message {
+            color: #94aebe;
+
+            line-height: 1.6;
+
+            font-size: 13px;
+        }
+
+        .success {
+            color: #63f7ad;
+        }
+
+        .warning {
+            color: #ffc857;
+        }
+
+        .danger {
+            color: #ff6b7a;
+        }
+
+        /* =====================================================
+           CROSS FIELD
+        ===================================================== */
+
+        .cross-header {
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            gap: 15px;
+
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            padding: 8px 13px;
+
+            border-radius: 30px;
+
+            font-size: 11px;
+
+            font-weight: bold;
+
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            color: #67f8ae;
+
+            background:
+                rgba(50,255,150,0.09);
+
+            border:
+                1px solid rgba(50,255,150,0.2);
+        }
+
+        .badge-warning {
+            color: #ffd166;
+
+            background:
+                rgba(255,193,7,0.09);
+
+            border:
+                1px solid rgba(255,193,7,0.2);
+        }
+
+        .check-list {
+            display: grid;
+
+            gap: 10px;
+
+            margin-top: 18px;
+        }
+
+        .check-item,
+        .issue-item {
+            display: flex;
+
+            align-items: flex-start;
+
+            gap: 10px;
+
+            padding: 13px 15px;
+
+            border-radius: 10px;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+        .check-item {
+            background:
+                rgba(50,255,150,0.045);
+
+            border:
+                1px solid rgba(50,255,150,0.12);
+
+            color: #bdeed3;
+        }
+
+        .issue-item {
+            background:
+                rgba(255,193,7,0.045);
+
+            border:
+                1px solid rgba(255,193,7,0.12);
+
+            color: #f2d99b;
+        }
+
+        .check-icon {
+            color: #63f7ad;
+
+            font-weight: bold;
+        }
+
+        .issue-icon {
+            color: #ffc857;
+
+            font-weight: bold;
+        }
+
+        .verification-flow {
+            display: grid;
+
+            grid-template-columns:
+                1fr auto 1fr auto 1fr;
+
+            align-items: center;
+
+            gap: 12px;
+
+            margin-top: 25px;
+        }
+
+        .flow-box {
+            text-align: center;
+
+            padding: 18px 12px;
+
+            border-radius: 12px;
+
+            background:
+                rgba(0,212,255,0.045);
+
+            border:
+                1px solid rgba(0,212,255,0.12);
+        }
+
+        .flow-title {
+            font-size: 12px;
+
+            font-weight: bold;
+
+            color: #8fe8ff;
+
+            margin-bottom: 5px;
+        }
+
+        .flow-text {
+            color: #7892a5;
+
+            font-size: 11px;
+        }
+
+        .arrow {
+            color: #00c6ff;
+
+            font-size: 22px;
+        }
+
+        /* =====================================================
+           RISK
+        ===================================================== */
+
+        .risk-container {
+            display: grid;
+
+            grid-template-columns:
+                220px 1fr;
+
+            gap: 25px;
+
+            align-items: center;
+        }
+
+        .risk-score {
+            text-align: center;
+
+            padding: 25px;
+
+            border-radius: 16px;
+
+            background:
+                rgba(255,255,255,0.035);
+
+            border:
+                1px solid rgba(255,255,255,0.08);
+        }
+
+        .score-number {
+            font-size: 43px;
+
+            font-weight: bold;
+
+            margin-bottom: 5px;
+        }
+
+        .score-label {
+            color: #829bad;
+
+            font-size: 12px;
+        }
+
+        .risk-level {
+            display: inline-block;
+
+            margin-top: 15px;
+
+            padding: 8px 16px;
+
+            border-radius: 30px;
+
+            font-size: 12px;
+
+            font-weight: bold;
+        }
+
+        .risk-high {
+            color: #ff7280;
+
+            background:
+                rgba(255,70,90,0.09);
+
+            border:
+                1px solid rgba(255,70,90,0.2);
+        }
+
+        .risk-medium {
+            color: #ffd166;
+
+            background:
+                rgba(255,193,7,0.09);
+
+            border:
+                1px solid rgba(255,193,7,0.2);
+        }
+
+        .risk-low {
+            color: #63f7ad;
+
+            background:
+                rgba(50,255,150,0.09);
+
+            border:
+                1px solid rgba(50,255,150,0.2);
+        }
+
+        .reason-list {
+            list-style: none;
+
+            display: grid;
+
+            gap: 10px;
+        }
+
+        .reason-list li {
+            padding: 13px 15px;
+
+            border-radius: 10px;
+
+            background:
+                rgba(255,255,255,0.035);
+
+            border:
+                1px solid rgba(255,255,255,0.06);
+
+            color: #b7cbd8;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+        .reason-list li::before {
+            content: "•";
+
+            color: #00c6ff;
+
+            margin-right: 8px;
+
+            font-weight: bold;
+        }
+
+        /* =====================================================
+           FOOTER
+        ===================================================== */
+
+        footer {
+            text-align: center;
+
+            color: #60788a;
+
+            font-size: 12px;
+
+            padding: 10px 0 30px;
+        }
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 850px) {
+
+            .upload-grid,
+            .data-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .risk-container {
+                grid-template-columns: 1fr;
+            }
+
+            .verification-flow {
+                grid-template-columns: 1fr;
+            }
+
+            .arrow {
+                transform: rotate(90deg);
+
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 600px) {
+
+            .container {
+                width: 94%;
+            }
+
+            .header-content {
+                align-items: flex-start;
+
+                flex-direction: column;
+            }
+
+            .online {
+                align-self: flex-start;
+            }
+
+            .upload-grid,
+            .data-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero h2 {
+                font-size: 24px;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+    
+    <a href="/dashboard/" style="
+    display: inline-block;
+    padding: 12px 20px;
+    background: #111827;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    margin: 10px;
+">
+    Officer Dashboard
+</a>
+
+<!-- =========================================================
+     HEADER
+========================================================= -->
+
+<header>
+
+    <div class="container">
+
+        <div class="header-content">
+
+            <div class="brand">
+
+                <div class="brand-icon">
+                    🛡️
+                </div>
+
+                <div>
+
+                    <h1>
+                        Border GuardX
+                    </h1>
+
+                    <p>
+                        AI-Based Identity & Document Screening System
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="online">
+                ● SCREENING SYSTEM ONLINE
+            </div>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<!-- =========================================================
+     MAIN
+========================================================= -->
+
+<main>
+
+<div class="container">
+
+
+    <!-- =====================================================
+         HERO
+    ====================================================== -->
+
+    <div class="hero">
+
+        <h2>
+            Identity & Document Screening
+        </h2>
+
+        <p>
+            Analyze identity documents using OCR,
+            document validation, cross-field consistency,
+            forensic checks and face verification.
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         UPLOAD CARD
+    ====================================================== -->
+
+    <div class="card">
+
+        <div class="section-title">
+            📄 Upload Document
+        </div>
+
+        <div class="section-description">
+            Provide the identity document and optional reference face.
+        </div>
+
+
+        <form
+            method="POST"
+            enctype="multipart/form-data"
+        >
+
+            {% csrf_token %}
+
+
+            <div class="upload-grid">
+
+
+                <div class="upload-box">
+
+                    <label>
+                        Identity / Passport Document
+                    </label>
+
+                    <input
+                        type="file"
+                        name="document"
+                        accept="image/*"
+                        required
+                    >
+
+                    <div class="upload-note">
+                        Upload a clear document image.
+                    </div>
+
+                </div>
+
+
+                <div class="upload-box">
+
+                    <label>
+                        Reference Face Image
+                    </label>
+
+                    <input
+                        type="file"
+                        name="reference_face"
+                        accept="image/*"
+                    >
+
+                    <div class="upload-note">
+                        A reference face image can be provided
+                        for face verification.
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="button-area">
+
+                <button
+                    type="submit"
+                    class="scan-button"
+                >
+                    🔍 Start AI Screening
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+    {% if document_data %}
+
+
+    <!-- =====================================================
+         DOCUMENT INFORMATION
+    ====================================================== -->
+
+    <div class="card">
+
+        <div class="section-title">
+            📋 Extracted Document Information
+        </div>
+
+        <div class="section-description">
+            Information extracted from the uploaded document.
+        </div>
+
+
+        <div class="data-grid">
+
+
+            {% for key, value in document_data.items %}
+
+                <div class="data-item">
+
+                    <div class="data-label">
+                        {{ key }}
+                    </div>
+
+                    <div class="data-value">
+                        {{ value }}
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MRZ
+    ====================================================== -->
+
+    <div class="card">
+
+        <div class="section-title">
+            🔐 MRZ Verification
+        </div>
+
+        <div class="section-description">
+            Machine Readable Zone validation.
+        </div>
+
+
+        <div class="status-box">
+
+            {% if mrz_result.status == "VALID" %}
+
+                <div class="status-title success">
+                    ✅ MRZ VERIFIED
+                </div>
+
+            {% elif mrz_result.status == "NOT_DETECTED" %}
+
+                <div class="status-title warning">
+                    ⚠️ MRZ NOT DETECTED
+                </div>
+
+            {% else %}
+
+                <div class="status-title danger">
+                    ❌ MRZ VERIFICATION FAILED
+                </div>
+
+            {% endif %}
+
+
+            <div class="status-message">
+                {{ mrz_result.message }}
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CROSS FIELD VERIFICATION
+    ====================================================== -->
+
+    {% if cross_field_result %}
+
+    <div class="card">
+
+        <div class="section-title">
+            🔗 Cross-Field Verification
+        </div>
+
+        <div class="section-description">
+            Consistency check between extracted document fields.
+        </div>
+
+
+        <div class="cross-header">
+
+            {% if cross_field_result.valid %}
+
+                <div class="badge badge-success">
+                    ✓ CONSISTENT
+                </div>
+
+            {% else %}
+
+                <div class="badge badge-warning">
+                    ⚠ REVIEW REQUIRED
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+        <div class="status-box">
+
+            {% if cross_field_result.valid %}
+
+                <div class="status-title success">
+                    ✅ All Available Fields Are Consistent
+                </div>
+
+            {% else %}
+
+                <div class="status-title warning">
+                    ⚠️ Some Fields Require Additional Verification
+                </div>
+
+            {% endif %}
+
+
+            <div class="status-message">
+                {{ cross_field_result.message }}
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             INDIVIDUAL CHECKS
+        ================================================== -->
+
+        {% if cross_field_result.checks %}
+
+            <div
+                class="check-list"
+            >
+
+                {% for check in cross_field_result.checks %}
+
+                    <div class="check-item">
+
+                        <span class="check-icon">
+                            ✓
+                        </span>
+
+                        <span>
+                            {{ check }}
+                        </span>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+        {% endif %}
+
+
+        <!-- =================================================
+             ISSUES
+        ================================================== -->
+
+        {% if cross_field_result.issues %}
+
+            <div
+                class="check-list"
+                style="margin-top: 10px;"
+            >
+
+                {% for issue in cross_field_result.issues %}
+
+                    <div class="issue-item">
+
+                        <span class="issue-icon">
+                            ⚠
+                        </span>
+
+                        <span>
+                            {{ issue }}
+                        </span>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+        {% endif %}
+
+
+        <!-- =================================================
+             VERIFICATION FLOW
+        ================================================== -->
+
+        <div class="verification-flow">
+
+
+            <div class="flow-box">
+
+                <div class="flow-title">
+                    DOCUMENT
+                </div>
+
+                <div class="flow-text">
+                    Visible information
+                </div>
+
+            </div>
+
+
+            <div class="arrow">
+                →
+            </div>
+
+
+            <div class="flow-box">
+
+                <div class="flow-title">
+                    OCR DATA
+                </div>
+
+                <div class="flow-text">
+                    Extracted information
+                </div>
+
+            </div>
+
+
+            <div class="arrow">
+                →
+            </div>
+
+
+            <div class="flow-box">
+
+                <div class="flow-title">
+                    CONSISTENCY
+                </div>
+
+                <div class="flow-text">
+                    Field validation
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- =====================================================
+         EXPIRY VALIDATION
+    ====================================================== -->
+
+    {% if expiry_result %}
+
+    <div class="card">
+
+        <div class="section-title">
+            ⏳ Expiry Validation
+        </div>
+
+        <div class="section-description">
+            Current document validity status.
+        </div>
+
+
+        <div class="status-box">
+
+            {% if expiry_result.status == "VALID" %}
+
+                <div class="status-title success">
+                    ✅ DOCUMENT VALID
+                </div>
+
+            {% elif expiry_result.status == "EXPIRED" %}
+
+                <div class="status-title danger">
+                    ❌ DOCUMENT EXPIRED
+                </div>
+
+            {% else %}
+
+                <div class="status-title warning">
+                    ⚠️ EXPIRY STATUS UNKNOWN
+                </div>
+
+            {% endif %}
+
+
+            <div class="status-message">
+                {{ expiry_result.message }}
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- =====================================================
+         FORENSICS
+    ====================================================== -->
+
+    {% if forensic_result %}
+
+    <div class="card">
+
+        <div class="section-title">
+            🧪 Document Forensics
+        </div>
+
+        <div class="section-description">
+            Pixel-level anomaly screening.
+        </div>
+
+
+        <div class="status-box">
+
+
+            {% if forensic_result.suspicious %}
+
+                <div class="status-title warning">
+                    ⚠️ Pixel-Level Anomaly Detected
+                </div>
+
+            {% else %}
+
+                <div class="status-title success">
+                    ✅ No Strong Pixel-Level Anomaly Detected
+                </div>
+
+            {% endif %}
+
+
+            <div
+                class="status-message"
+                style="margin-top: 10px;"
+            >
+
+                <strong>
+                    Forensic Score:
+                </strong>
+
+                {{ forensic_result.score }}/100
+
+            </div>
+
+
+            <div
+                class="status-message"
+                style="margin-top: 8px;"
+            >
+
+                {{ forensic_result.message }}
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- =====================================================
+         FACE VERIFICATION
+    ====================================================== -->
+
+    {% if face_result %}
+
+    <div class="card">
+
+        <div class="section-title">
+            👤 Face Verification
+        </div>
+
+        <div class="section-description">
+            Comparison with the supplied reference face.
+        </div>
+
+
+        <div class="status-box">
+
+
+            {% if face_result.status == "NOT_PROVIDED" %}
+
+                <div class="status-title warning">
+                    ⚠️ REFERENCE FACE NOT PROVIDED
+                </div>
+
+
+            {% elif face_result.status == "NO_FACE" %}
+
+                <div class="status-title danger">
+                    ❌ FACE NOT DETECTED
+                </div>
+
+
+            {% elif face_result.matched %}
+
+                <div class="status-title success">
+                    ✅ FACE MATCHED
+                </div>
+
+
+            {% else %}
+
+                <div class="status-title danger">
+                    ❌ FACE NOT MATCHED
+                </div>
+
+            {% endif %}
+
+
+            {% if face_result.status != "NOT_PROVIDED" %}
+
+                <div
+                    class="status-message"
+                    style="margin-top: 10px;"
+                >
+
+                    <strong>
+                        Similarity:
+                    </strong>
+
+                    {{ face_result.score }}/100
+
+                </div>
+
+            {% endif %}
+
+
+            <div
+                class="status-message"
+                style="margin-top: 8px;"
+            >
+
+                {{ face_result.message }}
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- =====================================================
+         RISK ASSESSMENT
+    ====================================================== -->
+
+    {% if risk_result %}
+
+    <div class="card">
+
+        <div class="section-title">
+            ⚠️ Explainable Risk Assessment
+        </div>
+
+        <div class="section-description">
+            Combined screening indicators requiring human review.
+        </div>
+
+
+        <div class="risk-container">
+
+
+            <!-- SCORE -->
+
+            <div class="risk-score">
+
+                <div class="score-number">
+
+                    {{ risk_result.score }}/100
+
+                </div>
+
+                <div class="score-label">
+                    Risk Score
+                </div>
+
+
+                {% if risk_result.level == "HIGH" %}
+
+                    <div class="risk-level risk-high">
+                        🔴 HIGH RISK
+                    </div>
+
+                {% elif risk_result.level == "MEDIUM" %}
+
+                    <div class="risk-level risk-medium">
+                        🟡 MEDIUM RISK
+                    </div>
+
+                {% else %}
+
+                    <div class="risk-level risk-low">
+                        🟢 LOW RISK
+                    </div>
+
+                {% endif %}
+
+            </div>
+
+
+            <!-- REASONS -->
+
+            <div>
+
+                <h3
+                    style="
+                        margin-bottom: 12px;
+                        font-size: 15px;
+                    "
+                >
+                    Screening Indicators
+                </h3>
+
+
+                <ul class="reason-list">
+
+                    {% for reason in risk_result.reasons %}
+
+                        <li>
+                            {{ reason }}
+                        </li>
+
+                    {% endfor %}
+
+                </ul>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    {% endif %}
+
+
+</div>
+
+</main>
+
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer>
+
+    <div class="container">
+
+        Border GuardX — AI-Based Identity & Document Screening System
+
+    </div>
+
+</footer>
+
+
+</body>
+
+</html>
+              

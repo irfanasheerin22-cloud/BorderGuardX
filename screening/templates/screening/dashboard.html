@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Officer Dashboard | BorderGuardX</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .header {
+            background: #111827;
+            color: white;
+            padding: 20px 30px;
+        }
+
+        .header h1 {
+            font-size: 26px;
+        }
+
+        .header p {
+            margin-top: 5px;
+            color: #cbd5e1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 18px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            font-size: 15px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .section {
+            background: white;
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .section h2 {
+            margin-bottom: 12px;
+        }
+
+        .section p {
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 900px) {
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+       <h1 style="
+    margin-bottom:5px;
+    color:#111827;
+">
+    BorderGuardX — Officer Dashboard
+</h1>
+
+<p style="
+    margin-top:0;
+    color:#6b7280;
+    font-size:15px;
+">
+    AI-Assisted Identity & Document Screening System
+</p>
+        <a href="/"
+   style="
+       display:inline-block;
+       background:#111827;
+       color:white;
+       padding:10px 18px;
+       border-radius:8px;
+       text-decoration:none;
+       font-weight:bold;
+       margin-bottom:20px;
+   ">
+    + Screen New Document
+</a>
+        <p>AI-Based Fake Identity & Document Screening System</p>
+    </div>
+
+    <div class="container">
+
+        <div class="cards">
+
+           <div class="card" style="
+    border-left:5px solid #2563eb;
+    background:#eff6ff;
+">
+    <h3>Total Screenings</h3>
+
+    <div class="number" style="
+        color:#1d4ed8;
+    ">
+        {{ total_screenings }}
+    </div>
+</div>
+            <div class="card" style="
+    border-left:5px solid #f59e0b;
+    background:#fffbeb;
+">
+    <h3>Pending Reviews</h3>
+
+    <div class="number" style="
+        color:#b45309;
+    ">
+        {{ pending_reviews }}
+    </div>
+</div>
+            
+            </div>
+
+           <div class="card" style="
+    border-left:5px solid #16a34a;
+    background:#f0fdf4;
+">
+    <h3>Approved Reviews</h3>
+
+    <div class="number" style="
+        color:#15803d;
+    ">
+        {{ approved_reviews }}
+    </div>
+</div>
+
+            <div class="card" style="
+    border-left:5px solid #dc2626;
+    background:#fef2f2;
+">
+    <h3>Rejected Reviews</h3>
+
+    <div class="number" style="
+        color:#b91c1c;
+    ">
+        {{ rejected_reviews }}
+    </div>
+</div>
+
+           <div class="card" style="
+    border-left:5px solid #dc2626;
+    background:#fff1f2;
+">
+    <h3>High Risk Cases</h3>
+
+    <div class="number" style="
+        color:#991b1b;
+    ">
+        {{ high_risk_cases }}
+    </div>
+</div>
+
+        </div>
+
+        <div class="section">
+            <h2>Officer Review</h2>
+
+            <p>
+                AI screening results are decision-support information.
+                Final document verification must be performed by an
+                authorized human officer.
+            </p>
+        </div>
+            <div class="section">
+            <h2>Recent Screening Records</h2>
+
+<table style="width:100%; border-collapse:collapse; margin-top:20px;">
+
+    <tr style="background:#f1f5f9;">
+        <th style="padding:12px; text-align:left;">Passport Number</th>
+        <th style="padding:12px; text-align:left;">Risk Score</th>
+        <th style="padding:12px; text-align:left;">Risk Level</th>
+        <th style="padding:12px; text-align:left;">Face Status</th>
+        <th style="padding:12px; text-align:left;">Forensic Score</th>
+        <th style="padding:12px; text-align:left;">Expiry</th>
+        <th style="padding:12px; text-align:left;">Review</th>
+    </tr>
+
+    {% for record in records %}
+
+    <tr>
+
+        <td style="padding:12px; border-bottom:1px solid #e5e7eb;">
+            {{ record.passport_number }}
+        </td>
+
+        <td>
+    <div style="
+        width:100px;
+        height:10px;
+        background:#e5e7eb;
+        border-radius:10px;
+        overflow:hidden;
+        display:inline-block;
+        vertical-align:middle;
+        margin-right:6px;
+    ">
+        <div style="
+            width:{{ record.risk_score }}%;
+            height:100%;
+            border-radius:10px;
+            {% if record.risk_level == 'HIGH' %}
+                background:#dc2626;
+            {% elif record.risk_level == 'MEDIUM' %}
+                background:#f59e0b;
+            {% else %}
+                background:#16a34a;
+            {% endif %}
+        "></div>
+    </div>
+
+    <strong>{{ record.risk_score }}</strong>
+</td>
+        <td style="padding:12px; border-bottom:1px solid #e5e7eb;">
+            {{ record.risk_level }}
+        </td>
+
+        <td style="padding:12px; border-bottom:1px solid #e5e7eb;">
+            {{ record.face_status }}
+        </td>
+
+       <td>
+    <span style="
+        background:#f3f4f6;
+        color:#374151;
+        padding:5px 10px;
+        border-radius:12px;
+        font-weight:bold;
+    ">
+        {{ record.forensic_score }}
+    </span>
+</td>
+
+        <td>
+    {% if record.expiry_status == "EXPIRED" %}
+
+        <span style="
+            background:#fee2e2;
+            color:#b91c1c;
+            padding:5px 10px;
+            border-radius:12px;
+            font-weight:bold;
+        ">
+            EXPIRED
+        </span>
+
+    {% elif record.expiry_status == "VALID" %}
+
+        <span style="
+            background:#dcfce7;
+            color:#15803d;
+            padding:5px 10px;
+            border-radius:12px;
+            font-weight:bold;
+        ">
+            VALID
+        </span>
+
+    {% else %}
+
+        <span style="
+            background:#f3f4f6;
+            color:#6b7280;
+            padding:5px 10px;
+            border-radius:12px;
+            font-weight:bold;
+        ">
+            {{ record.expiry_status }}
+        </span>
+
+    {% endif %}
+</td>
+
+        <td>
+    {% if record.final_review == "PENDING" %}
+
+        <form method="post"
+              action="{% url 'review_screening' record.id %}"
+              style="display:inline;">
+
+            {% csrf_token %}
+
+            <input type="hidden"
+                   name="decision"
+                   value="APPROVED">
+
+           <button type="submit"
+        style="
+            background:#16a34a;
+            color:white;
+            border:none;
+            padding:6px 12px;
+            border-radius:6px;
+            cursor:pointer;
+            margin-right:5px;
+        ">
+    Approve
+</button>
+
+        </form>
+
+        <form method="post"
+              action="{% url 'review_screening' record.id %}"
+              style="display:inline;">
+
+            {% csrf_token %}
+
+            <input type="hidden"
+                   name="decision"
+                   value="REJECTED">
+
+            <button type="submit"
+        style="
+            background:#dc2626;
+            color:white;
+            border:none;
+            padding:6px 12px;
+            border-radius:6px;
+            cursor:pointer;
+        ">
+    Reject
+    </button>
+
+        </form>
+
+    {% else %}
+
+        {{ record.final_review }}
+
+    {% endif %}
+</td>
+
+    </tr>
+
+    {% endfor %}
+
+</table>
+        </div>
+    </div>
+
+</body>
+</html>

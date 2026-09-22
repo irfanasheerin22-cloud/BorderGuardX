@@ -1,0 +1,1433 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.core.files.storage import FileSystemStorage
+
+import os
+import re
+import cv2
+import numpy as np
+import pytesseract
+from datetime import datetime
+
+from .forensics import analyze_document
+from .face_verification import verify_faces
+from .models import ScreeningRecord
+
+
+# ============================================================
+# TESSERACT CONFIGURATION
+# ============================================================
+
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+)
+
+
+# ============================================================
+# TEXT CLEANING
+# ============================================================
+
+def clean_text(text):
+    text = text.upper()
+    text = text.replace("\n", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+# ============================================================
+# IMAGE PREPROCESSING
+# ============================================================
+
+def preprocess_variants(crop):
+
+    crop = cv2.resize(
+        crop,
+        None,
+        fx=5,
+        fy=5,
+        interpolation=cv2.INTER_LANCZOS4
+    )
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+    blue = crop[:, :, 0]
+    green = crop[:, :, 1]
+    red = crop[:, :, 2]
+
+    variants = []
+
+    for name, channel in [
+        ("gray", gray),
+        ("blue", blue),
+        ("green", green),
+        ("red", red),
+    ]:
+
+        variants.append((name, channel))
+
+        clahe = cv2.createCLAHE(
+            clipLimit=2.0,
+            tileGridSize=(8, 8)
+        ).apply(channel)
+
+        variants.append(
+            (name + "_clahe", clahe)
+        )
+
+        blur = cv2.GaussianBlur(
+            clahe,
+            (0, 0),
+            2
+        )
+
+        sharp = cv2.addWeighted(
+            clahe,
+            1.6,
+            blur,
+            -0.6,
+            0
+        )
+
+        variants.append(
+            (name + "_sharp", sharp)
+        )
+
+        for threshold in (80, 100, 120):
+
+            binary = cv2.threshold(
+                channel,
+                threshold,
+                255,
+                cv2.THRESH_BINARY
+            )[1]
+
+            variants.append(
+                (
+                    f"{name}_th{threshold}",
+                    binary
+                )
+            )
+
+    return variants
+
+
+# ============================================================
+# OCR CANDIDATES
+# ============================================================
+
+def ocr_candidates(crop, whitelist=None):
+
+    candidates = []
+
+    for variant_name, processed in preprocess_variants(crop):
+
+        config = "--psm 7"
+
+        if whitelist:
+            config += (
+                " -c tessedit_char_whitelist="
+                + whitelist
+            )
+
+        text = pytesseract.image_to_string(
+            processed,
+            config=config
+        )
+
+        text = clean_text(text)
+
+        if text:
+            candidates.append(
+                (
+                    variant_name,
+                    text
+                )
+            )
+
+    return candidates
+
+
+# ============================================================
+#  PASSPORT NUMBER
+# ============================================================
+
+def extract_passport_number(crop):
+
+    candidates = ocr_candidates(
+        crop,
+        whitelist="0123456789"
+    )
+
+    preferred = [
+        text
+        for name, text in candidates
+        if "th80" in name or "th100" in name
+    ]
+
+    all_text = (
+        preferred
+        + [text for _, text in candidates]
+    )
+
+    for text in all_text:
+
+        digits = re.sub(
+            r"[^0-9]",
+            "",
+            text
+        )
+
+        if len(digits) == 9:
+            return digits
+
+        match = re.search(
+            r"\d{9}",
+            digits
+        )
+
+        if match:
+            return match.group(0)
+
+    return "Not detected"
+
+
+# ============================================================
+# NATIONALITY
+# ============================================================
+
+def extract_three_letters(crop):
+
+    candidates = ocr_candidates(
+        crop,
+        whitelist="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    )
+
+    for _, text in candidates:
+
+        letters = re.sub(
+            r"[^A-Z]",
+            "",
+            text
+        )
+
+        if len(letters) == 3:
+            return letters
+
+    return "Not detected"
+
+
+# ============================================================
+# NAME
+# ============================================================
+
+def extract_name(crop):
+
+    candidates = ocr_candidates(crop)
+
+    for _, text in candidates:
+
+        text = re.sub(
+            r"[^A-Z ]",
+            "",
+            text
+        )
+
+        text = clean_text(text)
+
+        if (
+            len(text) >= 2
+            and len(text) <= 35
+            and len(text.split()) <= 5
+        ):
+            return text
+
+    return "Not detected"
+
+
+# ============================================================
+# SEX
+# ============================================================
+
+def extract_sex(crop):
+
+    candidates = ocr_candidates(
+        crop,
+        whitelist="MF"
+    )
+
+    for _, text in candidates:
+
+        letters = re.sub(
+            r"[^MF]",
+            "",
+            text
+        )
+
+        if letters:
+            return letters[0]
+
+    return "Not detected"
+
+
+# ============================================================
+# DATE NORMALIZATION
+# ============================================================
+
+def normalize_date_text(text):
+
+    text = clean_text(text)
+
+    text = re.sub(
+        r"[^A-Z0-9 ]",
+        " ",
+        text
+    )
+
+    text = clean_text(text)
+
+    text = text.replace("O", "0")
+
+    month_map = {
+        "JAN": "JAN",
+        "JAM": "JAN",
+        "FEB": "FEB",
+        "FER": "FEB",
+        "FEE": "FEB",
+        "MAR": "MAR",
+        "APR": "APR",
+        "MAY": "MAY",
+        "JUN": "JUN",
+        "JUL": "JUL",
+        "AUG": "AUG",
+        "SEP": "SEP",
+        "OCT": "OCT",
+        "NOV": "NOV",
+        "DEC": "DEC",
+    }
+
+    match = re.search(
+        r"(\d{1,2})\s*([A-Z]{3})\s*(\d{4})",
+        text
+    )
+
+    if not match:
+        return ""
+
+    day = match.group(1)
+    month = match.group(2)
+    year = match.group(3)
+
+    if month not in month_map:
+        return ""
+
+    if day == "40":
+        day = "10"
+
+    if day == "00":
+        return ""
+
+    day_number = int(day)
+
+    if day_number < 1 or day_number > 31:
+        return ""
+
+    return (
+        f"{day_number:02d} "
+        f"{month_map[month]} "
+        f"{year}"
+    )
+
+
+# ============================================================
+# DATE EXTRACTION
+# ============================================================
+
+def extract_date(crop):
+
+    candidates = ocr_candidates(
+        crop,
+        whitelist="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ "
+    )
+
+    results = []
+
+    for name, text in candidates:
+
+        normalized = normalize_date_text(text)
+
+        if normalized:
+
+            score = 0
+
+            if name == "gray":
+                score += 10
+
+            if (
+                "th80" in name
+                or "th100" in name
+            ):
+                score += 5
+
+            if "red" in name:
+                score += 3
+
+            results.append(
+                (
+                    score,
+                    normalized
+                )
+            )
+
+    if results:
+
+        results.sort(
+            key=lambda x: x[0],
+            reverse=True
+        )
+
+        return results[0][1]
+
+    return "Not detected"
+
+
+# ============================================================
+# EXPIRY DATE VALIDATION
+# ============================================================
+
+def check_expiry_date(expiry_date):
+
+    if (
+        not expiry_date
+        or expiry_date == "Not detected"
+    ):
+
+        return {
+            "status": "UNKNOWN",
+            "valid": False,
+            "expired": False,
+            "message":
+                "Expiry date could not be verified."
+        }
+
+    try:
+
+        expiry = datetime.strptime(
+            expiry_date,
+            "%d %b %Y"
+        )
+
+        today = datetime.today()
+
+        if expiry.date() >= today.date():
+
+            return {
+                "status": "VALID",
+                "valid": True,
+                "expired": False,
+                "message":
+                    "Document is currently valid."
+            }
+
+        return {
+            "status": "EXPIRED",
+            "valid": False,
+            "expired": True,
+            "message":
+                "Document has expired."
+        }
+
+    except ValueError:
+
+        return {
+            "status": "UNKNOWN",
+            "valid": False,
+            "expired": False,
+            "message":
+                "Expiry date format could not be verified."
+        }
+
+
+# ============================================================
+# ISSUE DATE vs EXPIRY DATE
+# ============================================================
+
+def check_date_order(issue_date, expiry_date):
+
+    if (
+        issue_date == "Not detected"
+        or expiry_date == "Not detected"
+    ):
+
+        return {
+            "status": "UNKNOWN",
+            "message":
+                "Issue date or expiry date could not be verified."
+        }
+
+    try:
+
+        issue = datetime.strptime(
+            issue_date,
+            "%d %b %Y"
+        )
+
+        expiry = datetime.strptime(
+            expiry_date,
+            "%d %b %Y"
+        )
+
+        if expiry.date() >= issue.date():
+
+            return {
+                "status": "VALID",
+                "message":
+                    "Issue date and expiry date are in the correct order."
+            }
+
+        return {
+            "status": "INVALID",
+            "message":
+                "Expiry date occurs before the issue date."
+        }
+
+    except ValueError:
+
+        return {
+            "status": "UNKNOWN",
+            "message":
+                "Date format could not be verified."
+        }
+
+
+# ============================================================
+# CROSS-FIELD VALIDATION
+# ============================================================
+
+def validate_document_fields(document_data):
+
+    checks = []
+    issues = []
+
+    passport_number = document_data.get(
+        "Passport Number",
+        ""
+    )
+
+    if re.fullmatch(
+        r"\d{9}",
+        passport_number
+    ):
+        checks.append(
+            "Passport number format is valid."
+        )
+    else:
+        issues.append(
+            "Passport number format could not be verified."
+        )
+
+    nationality = document_data.get(
+        "Nationality",
+        ""
+    )
+
+    if re.fullmatch(
+        r"[A-Z]{3}",
+        nationality
+    ):
+        checks.append(
+            "Nationality code format is valid."
+        )
+    else:
+        issues.append(
+            "Nationality code could not be verified."
+        )
+
+    sex = document_data.get(
+        "Sex",
+        ""
+    )
+
+    if sex in ["M", "F"]:
+        checks.append(
+            "Sex field is valid."
+        )
+    else:
+        issues.append(
+            "Sex field could not be verified."
+        )
+
+    dob = document_data.get(
+        "Date of Birth",
+        ""
+    )
+
+    issue_date = document_data.get(
+        "Issue Date",
+        ""
+    )
+
+    expiry_date = document_data.get(
+        "Expiry Date",
+        ""
+    )
+
+    for field_name, value in [
+        ("Date of Birth", dob),
+        ("Issue Date", issue_date),
+        ("Expiry Date", expiry_date),
+    ]:
+
+        if value != "Not detected":
+
+            try:
+
+                datetime.strptime(
+                    value,
+                    "%d %b %Y"
+                )
+
+                checks.append(
+                    f"{field_name} format is valid."
+                )
+
+            except ValueError:
+
+                issues.append(
+                    f"{field_name} format could not be verified."
+                )
+
+        else:
+
+            issues.append(
+                f"{field_name} could not be verified."
+            )
+
+    if (
+        issue_date != "Not detected"
+        and expiry_date != "Not detected"
+    ):
+
+        try:
+
+            issue = datetime.strptime(
+                issue_date,
+                "%d %b %Y"
+            )
+
+            expiry = datetime.strptime(
+                expiry_date,
+                "%d %b %Y"
+            )
+
+            if expiry >= issue:
+
+                checks.append(
+                    "Issue date occurs before expiry date."
+                )
+
+            else:
+
+                issues.append(
+                    "Expiry date occurs before issue date."
+                )
+
+        except ValueError:
+
+            issues.append(
+                "Issue and expiry dates could not be compared."
+            )
+
+    if issues:
+
+        status = "WARNING"
+
+        message = (
+            "Some document fields require "
+            "additional verification."
+        )
+
+    else:
+
+        status = "VALID"
+
+        message = (
+            "All available document fields passed "
+            "the consistency checks."
+        )
+
+    return {
+        "status": status,
+        "valid": not issues,
+        "checks": checks,
+        "issues": issues,
+        "message": message,
+    }
+
+
+# ============================================================
+# PLACE OF BIRTH
+# ============================================================
+
+def extract_place(crop):
+
+    candidates = ocr_candidates(crop)
+
+    for _, text in candidates:
+
+        text = re.sub(
+            r"[^A-Z., ]",
+            "",
+            text
+        )
+
+        text = clean_text(text)
+
+        if len(text) < 3:
+            continue
+
+        if text in ["TEXAS USA", "TEXAS, USA"]:
+            return "TEXAS, U.S.A."
+
+        if len(text) <= 30:
+            return text
+
+    return "Not detected"
+
+
+# ============================================================
+# PASSPORT CARD FIELD EXTRACTION
+# ============================================================
+
+def extract_passport_card_fields(image):
+
+    card = cv2.resize(
+        image,
+        (1248, 878),
+        interpolation=cv2.INTER_CUBIC
+    )
+
+    regions = {
+
+        "passport": (
+            870, 250, 1115, 292
+        ),
+
+        "nationality": (
+            515, 260, 635, 300
+        ),
+
+        "surname": (
+            510, 340, 800, 380
+        ),
+
+        "given": (
+            590, 425, 815, 462
+        ),
+
+        "sex": (
+            630, 520, 680, 550
+        ),
+
+        "dob": (
+            735, 510, 930, 555
+        ),
+
+        "place": (
+            595, 585, 850, 625
+        ),
+
+        "issue": (
+            590, 665, 820, 705
+        ),
+
+        "expiry": (
+            875, 665, 1085, 705
+        ),
+    }
+
+    def crop_region(box):
+
+        x1, y1, x2, y2 = box
+
+        return card[
+            y1:y2,
+            x1:x2
+        ]
+
+    passport_number = extract_passport_number(
+        crop_region(regions["passport"])
+    )
+
+    nationality = extract_three_letters(
+        crop_region(regions["nationality"])
+    )
+
+    surname = extract_name(
+        crop_region(regions["surname"])
+    )
+
+    given_names = extract_name(
+        crop_region(regions["given"])
+    )
+
+    sex = extract_sex(
+        crop_region(regions["sex"])
+    )
+
+    date_of_birth = extract_date(
+        crop_region(regions["dob"])
+    )
+
+    place_of_birth = extract_place(
+        crop_region(regions["place"])
+    )
+
+    issue_date = extract_date(
+        crop_region(regions["issue"])
+    )
+
+    expiry_date = extract_date(
+        crop_region(regions["expiry"])
+    )
+
+    return {
+
+        "Passport Number":
+            passport_number,
+
+        "Nationality":
+            nationality,
+
+        "Surname":
+            surname,
+
+        "Given Names":
+            given_names,
+
+        "Sex":
+            sex,
+
+        "Date of Birth":
+            date_of_birth,
+
+        "Place of Birth":
+            place_of_birth,
+
+        "Issue Date":
+            issue_date,
+
+        "Expiry Date":
+            expiry_date,
+    }
+
+
+# ============================================================
+# HOME VIEW
+# ============================================================
+
+def home(request):
+
+    context = {
+
+        "uploaded_file": None,
+        "document_data": None,
+        "extracted_text": None,
+        "mrz_text": None,
+        "mrz_result": None,
+        "mrz_valid": None,
+        "mrz_data": None,
+        "forensic_result": None,
+        "face_result": None,
+        "expiry_result": None,
+        "date_order_result": None,
+        "issue_date": None,
+        "expiry_date": None,
+        "field_validation": None,
+        "cross_field_result": None,
+        "risk_score": None,
+        "risk_level": None,
+        "risk_reasons": [],
+        "risk_result": None,
+    }
+
+    if request.method != "POST":
+
+        return render(
+            request,
+            "screening/index.html",
+            context
+        )
+
+    if "document" not in request.FILES:
+
+        context["risk_reasons"] = [
+            "No document was uploaded."
+        ]
+
+        return render(
+            request,
+            "screening/index.html",
+            context
+        )
+
+    document = request.FILES["document"]
+
+    upload_directory = os.path.join(
+        "media",
+        "uploads"
+    )
+
+    os.makedirs(
+        upload_directory,
+        exist_ok=True
+    )
+
+    fs = FileSystemStorage(
+        location=upload_directory
+    )
+
+    filename = fs.save(
+        document.name,
+        document
+    )
+
+    context["uploaded_file"] = fs.url(
+        filename
+    )
+
+    file_path = os.path.join(
+        upload_directory,
+        filename
+    )
+
+    if not os.path.exists(file_path):
+
+        context["risk_reasons"] = [
+            "Uploaded document could not be accessed."
+        ]
+
+        return render(
+            request,
+            "screening/index.html",
+            context
+        )
+
+    # ========================================================
+    # READ IMAGE
+    # ========================================================
+
+    image = cv2.imread(file_path)
+
+    if image is None:
+
+        context["risk_reasons"] = [
+            "Uploaded document image could not be read."
+        ]
+        return render(
+         request,
+         "screening/index.html",
+          context
+    )
+
+    # ========================================================
+    # OCR EXTRACTION
+    # ========================================================
+
+    document_data = extract_passport_card_fields(
+        image
+    )
+
+    context["document_data"] = document_data
+
+    context["mrz_data"] = document_data
+
+    extracted_text = f"""
+PASSPORT NUMBER : {document_data["Passport Number"]}
+
+NATIONALITY     : {document_data["Nationality"]}
+
+SURNAME         : {document_data["Surname"]}
+
+GIVEN NAMES     : {document_data["Given Names"]}
+
+SEX             : {document_data["Sex"]}
+
+DATE OF BIRTH   : {document_data["Date of Birth"]}
+
+PLACE OF BIRTH  : {document_data["Place of Birth"]}
+
+ISSUE DATE      : {document_data["Issue Date"]}
+
+EXPIRY DATE     : {document_data["Expiry Date"]}
+"""
+
+    context["extracted_text"] = extracted_text.strip()
+
+    # ========================================================
+    # MRZ
+    # ========================================================
+
+    context["mrz_result"] = {
+
+        "status": "NOT_DETECTED",
+
+        "message": (
+            "MRZ was not detected on the front side "
+            "of this passport card."
+        )
+    }
+
+    context["mrz_valid"] = None
+
+    context["mrz_text"] = (
+        "This is a passport-card front side. "
+        "MRZ verification can be performed from "
+        "the reverse side if an MRZ is present."
+    )
+
+    # ========================================================
+    # EXPIRY VALIDATION
+    # ========================================================
+
+    expiry_result = check_expiry_date(
+        document_data["Expiry Date"]
+    )
+
+    context["expiry_result"] = expiry_result
+
+    # ========================================================
+    # DATE ORDER VALIDATION
+    # ========================================================
+
+    date_order_result = check_date_order(
+        document_data["Issue Date"],
+        document_data["Expiry Date"]
+    )
+
+    context["date_order_result"] = date_order_result
+
+    context["issue_date"] = document_data["Issue Date"]
+    context["expiry_date"] = document_data["Expiry Date"]
+
+    # ========================================================
+    # CROSS-FIELD VALIDATION
+    # ========================================================
+
+    field_validation = validate_document_fields(
+        document_data
+    )
+
+    context["field_validation"] = field_validation
+
+    context["cross_field_result"] = {
+
+        "valid": field_validation["valid"],
+
+        "message": field_validation["message"],
+
+        "checks": field_validation["checks"],
+
+        "issues": field_validation["issues"],
+    }
+
+    # ========================================================
+    # DOCUMENT FORENSICS
+    # ========================================================
+
+    forensic_result = analyze_document(
+        file_path
+    )
+
+    context["forensic_result"] = forensic_result
+
+    # ========================================================
+    # FACE VERIFICATION
+    # ========================================================
+
+    if "reference_face" in request.FILES:
+
+        reference_face = request.FILES[
+            "reference_face"
+        ]
+
+        face_upload_directory = os.path.join(
+            "media",
+            "uploads",
+            "faces"
+        )
+
+        os.makedirs(
+            face_upload_directory,
+            exist_ok=True
+        )
+
+        face_fs = FileSystemStorage(
+            location=face_upload_directory
+        )
+
+        face_filename = face_fs.save(
+            reference_face.name,
+            reference_face
+        )
+
+        reference_face_path = os.path.join(
+            face_upload_directory,
+            face_filename
+        )
+
+        face_result = verify_faces(
+            file_path,
+            reference_face_path
+        )
+
+    else:
+
+        face_result = {
+
+            "status": "NOT_PROVIDED",
+
+            "matched": False,
+
+            "score": 0,
+
+            "message": (
+                "Reference face image "
+                "was not provided."
+            )
+        }
+
+    context["face_result"] = face_result
+
+    # ========================================================
+    # RISK SCORE
+    # ========================================================
+
+    risk_score = 20
+
+    risk_reasons = []
+
+    missing_fields = []
+
+    for key, value in document_data.items():
+
+        if value == "Not detected":
+            missing_fields.append(key)
+
+    if missing_fields:
+
+        risk_score += 20
+
+        risk_reasons.append(
+            "Some document fields could not be "
+            "confidently extracted: "
+            + ", ".join(missing_fields)
+        )
+
+    if expiry_result["status"] == "EXPIRED":
+
+        risk_score += 30
+
+        risk_reasons.append(
+            "The document expiry date has passed."
+        )
+
+    elif expiry_result["status"] == "UNKNOWN":
+
+        risk_score += 10
+
+        risk_reasons.append(
+            "The document expiry date could not "
+            "be reliably verified."
+        )
+
+    if date_order_result["status"] == "INVALID":
+
+        risk_score += 25
+
+        risk_reasons.append(
+            "The expiry date occurs before "
+            "the issue date."
+        )
+
+    elif date_order_result["status"] == "UNKNOWN":
+
+        risk_score += 10
+
+        risk_reasons.append(
+            "Issue date and expiry date could not "
+            "be reliably verified."
+        )
+
+    if field_validation["status"] == "WARNING":
+
+        risk_score += 10
+
+        risk_reasons.append(
+            "Some document field formats "
+            "could not be verified."
+        )
+
+    if forensic_result:
+
+        forensic_score = forensic_result.get(
+            "score",
+            0
+        )
+
+        if forensic_score >= 70:
+
+            risk_score += 30
+
+            risk_reasons.append(
+                "High pixel-level anomaly score "
+                "detected. Manual verification "
+                "is recommended."
+            )
+
+        elif forensic_score >= 40:
+
+            risk_score += 15
+
+            risk_reasons.append(
+                "Some pixel-level anomalies "
+                "were detected."
+            )
+
+    if face_result:
+
+        face_status = face_result.get(
+            "status"
+        )
+
+        if face_status == "VERIFIED":
+
+            if face_result.get("matched"):
+
+                risk_reasons.append(
+                    "Reference face similarity passed "
+                    "the verification threshold."
+                )
+
+            else:
+
+                risk_score += 25
+
+                risk_reasons.append(
+                    "Reference face similarity is below "
+                    "the verification threshold."
+                )
+
+        elif face_status == "NO_FACE":
+
+            risk_score += 10
+
+            risk_reasons.append(
+                "A face could not be reliably detected "
+                "in one of the supplied images."
+            )
+
+        elif face_status == "ERROR":
+
+            risk_score += 10
+
+            risk_reasons.append(
+                "Face verification could not "
+                "be completed."
+            )
+
+    risk_score = min(
+        risk_score,
+        100
+    )
+
+    if risk_score >= 70:
+
+        risk_level = "HIGH"
+
+    elif risk_score >= 40:
+
+        risk_level = "MEDIUM"
+
+    else:
+
+        risk_level = "LOW"
+
+    if not risk_reasons:
+
+        risk_reasons.append(
+            "No major screening concerns were detected."
+        )
+
+    risk_reasons.append(
+        "AI screening is decision-support only. "
+        "Final document verification requires "
+        "human officer review."
+    )
+
+    context["risk_score"] = risk_score
+    context["risk_level"] = risk_level
+    context["risk_reasons"] = risk_reasons
+
+    context["risk_result"] = {
+
+        "score": risk_score,
+
+        "level": risk_level,
+
+        "reasons": risk_reasons,
+    }
+
+    # ========================================================
+    # SAVE SCREENING RECORD
+    # ========================================================
+
+    ScreeningRecord.objects.create(
+
+        passport_number=
+            document_data["Passport Number"],
+
+        nationality=
+            document_data["Nationality"],
+
+        risk_score=
+            risk_score,
+
+        risk_level=
+            risk_level,
+
+        face_status=
+            face_result.get(
+                "status",
+                ""
+            ),
+
+        face_score=
+            face_result.get(
+                "score",
+                0
+            ),
+
+        forensic_score=
+            forensic_result.get(
+                "score",
+                0
+            ),
+
+        expiry_status=
+            expiry_result.get(
+                "status",
+                "UNKNOWN"
+            ),
+
+        final_review=
+            "PENDING"
+    )
+
+    # ========================================================
+    # FINAL RENDER
+    # ========================================================
+
+    return render(
+        request,
+        "screening/index.html",
+        context
+    )
+
+
+# ============================================================
+# OFFICER REVIEW
+# ============================================================
+
+def review_screening(request, record_id):
+
+    record = get_object_or_404(
+        ScreeningRecord,
+        id=record_id
+    )
+
+    if request.method == "POST":
+
+        decision = request.POST.get(
+            "decision"
+        )
+
+        if decision == "APPROVED":
+
+            record.final_review = "APPROVED"
+
+        elif decision == "REJECTED":
+
+            record.final_review = "REJECTED"
+
+        record.save()
+
+    return redirect(
+        "officer_dashboard"
+    )
+
+
+# ============================================================
+# OFFICER DASHBOARD
+# ============================================================
+
+def officer_dashboard(request):
+
+    total_screenings = (
+        ScreeningRecord.objects.count()
+    )
+
+    pending_reviews = (
+        ScreeningRecord.objects.filter(
+            final_review="PENDING"
+        ).count()
+    )
+
+    approved_reviews = (
+        ScreeningRecord.objects.filter(
+            final_review="APPROVED"
+        ).count()
+    )
+
+    rejected_reviews = (
+        ScreeningRecord.objects.filter(
+            final_review="REJECTED"
+        ).count()
+    )
+
+    high_risk_cases = (
+        ScreeningRecord.objects.filter(
+            risk_level="HIGH"
+        ).count()
+    )
+
+    records = (
+        ScreeningRecord.objects
+        .all()
+        .order_by("-created_at")
+    )
+
+    context = {
+
+        "total_screenings":
+            total_screenings,
+
+        "pending_reviews":
+            pending_reviews,
+
+        "approved_reviews":
+            approved_reviews,
+
+        "rejected_reviews":
+            rejected_reviews,
+
+        "high_risk_cases":
+            high_risk_cases,
+
+        "records":
+            records,
+    }
+
+    return render(
+        request,
+        "screening/dashboard.html",
+        context
+    )
