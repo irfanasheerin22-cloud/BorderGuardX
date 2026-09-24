@@ -22,4 +22,4 @@ RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "python manage.py migrate && gunicorn borderguard.wsgi:application --bind 0.0.0.0:10000"]
+CMD ["sh", "-c", "python manage.py migrate && gunicorn borderguard.wsgi:application --bind 0.0.0.0:10000 --timeout 120"]
