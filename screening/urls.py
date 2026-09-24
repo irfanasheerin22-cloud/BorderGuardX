@@ -1,18 +1,30 @@
 from django.urls import path
-from .views import home, officer_dashboard, review_screening
+
+from .views import (
+    home,
+    officer_dashboard,
+    review_screening,
+    demo_file,
+)
 
 urlpatterns = [
-    path('', home, name='home'),
+    path("demo/<str:filename>/", demo_file, name="demo_file"),
 
     path(
-        'dashboard/',
-        officer_dashboard,
-        name='officer_dashboard'
+        "",
+        home,
+        name="home"
     ),
 
     path(
-        'review/<int:record_id>/',
+        "dashboard/",
+        officer_dashboard,
+        name="officer_dashboard"
+    ),
+
+    path(
+        "review/<int:record_id>/",
         review_screening,
-        name='review_screening'
+        name="review_screening"
     ),
 ]

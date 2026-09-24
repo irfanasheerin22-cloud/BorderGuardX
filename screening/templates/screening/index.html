@@ -176,6 +176,71 @@
         }
 
         /* =====================================================
+           DEMO FILE DOWNLOAD
+        ===================================================== */
+
+        .demo-files {
+            width: 92%;
+            max-width: 1250px;
+            margin: 20px auto;
+
+            padding: 20px;
+
+            background: rgba(0,212,255,0.06);
+
+            border: 1px solid rgba(0,212,255,0.18);
+
+            border-radius: 14px;
+
+            text-align: center;
+        }
+
+        .demo-files h3 {
+            color: #8fe8ff;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .demo-files p {
+            color: #8ba8bd;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .download-button {
+            display: inline-block;
+
+            padding: 11px 18px;
+
+            margin: 5px;
+
+            color: white;
+
+            text-decoration: none;
+
+            border-radius: 8px;
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+            transition: 0.2s;
+        }
+
+        .download-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .passport-download {
+            background: #0072ff;
+        }
+
+        .face-download {
+            background: #16a34a;
+        }
+
+        /* =====================================================
            UPLOAD
         ===================================================== */
 
@@ -695,6 +760,15 @@
             .card {
                 padding: 18px;
             }
+
+            .demo-files {
+                width: 94%;
+            }
+
+            .download-button {
+                display: block;
+                margin: 8px 0;
+            }
         }
 
     </style>
@@ -703,8 +777,48 @@
 
 
 <body>
-    
-    <a href="/dashboard/" style="
+
+
+<!-- =========================================================
+     DEMO FILE DOWNLOADS
+========================================================= -->
+
+<div class="demo-files">
+
+    <h3>
+        📥 Download Demo Files
+    </h3>
+
+    <p>
+        Download the sample passport and reference face image,
+        then upload them below for the demonstration.
+    </p>
+
+    <a
+        href="{% url 'demo_file' 'passport.jpg' %}"
+        download="C:\Users\acer\BorderGuardX\borderguard\media\demo\passport.jpg"
+        class="download-button passport-download"
+    >
+        📄 Download Passport
+    </a>
+
+    <a
+        href="{% url 'demo_file' 'face.jpg' %}"
+        download="C:\Users\acer\BorderGuardX\borderguard\media\demo\face.jpeg"
+        class="download-button face-download"
+    >
+        👤 Download Reference Face
+    </a>
+
+
+</div>
+
+
+<!-- =========================================================
+     OFFICER DASHBOARD
+========================================================= -->
+
+<a href="/dashboard/" style="
     display: inline-block;
     padding: 12px 20px;
     background: #111827;
@@ -715,6 +829,7 @@
 ">
     Officer Dashboard
 </a>
+
 
 <!-- =========================================================
      HEADER
@@ -1020,15 +1135,9 @@
         </div>
 
 
-        <!-- =================================================
-             INDIVIDUAL CHECKS
-        ================================================== -->
-
         {% if cross_field_result.checks %}
 
-            <div
-                class="check-list"
-            >
+            <div class="check-list">
 
                 {% for check in cross_field_result.checks %}
 
@@ -1050,10 +1159,6 @@
 
         {% endif %}
 
-
-        <!-- =================================================
-             ISSUES
-        ================================================== -->
 
         {% if cross_field_result.issues %}
 
@@ -1082,10 +1187,6 @@
 
         {% endif %}
 
-
-        <!-- =================================================
-             VERIFICATION FLOW
-        ================================================== -->
 
         <div class="verification-flow">
 
@@ -1367,8 +1468,6 @@
         <div class="risk-container">
 
 
-            <!-- SCORE -->
-
             <div class="risk-score">
 
                 <div class="score-number">
@@ -1404,8 +1503,6 @@
 
             </div>
 
-
-            <!-- REASONS -->
 
             <div>
 
@@ -1467,4 +1564,3 @@
 </body>
 
 </html>
-              

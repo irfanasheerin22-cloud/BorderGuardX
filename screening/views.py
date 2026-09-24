@@ -1,5 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import FileSystemStorage
+from django.http import FileResponse, Http404
+from django.conf import settings
+from pathlib import Path
 
 import os
 import re
@@ -818,6 +821,35 @@ def extract_passport_card_fields(image):
         "Expiry Date":
             expiry_date,
     }
+
+# ============================================================
+# DEMO FILE DOWNLOAD
+# ============================================================
+
+def demo_file(request, filename):
+
+    allowed_files = {
+        "passport.jpg": "passport.jpg",
+        "face.jpg": "face.jpg",
+    }
+
+    if filename not in allowed_files:
+        raise Http404("Demo file not found")
+
+    file_path = (
+        Path(settings.MEDIA_ROOT)
+        / "demo"
+        / allowed_files[filename]
+    )
+
+    if not file_path.exists():
+        raise Http404("Demo file not found")
+
+    return FileResponse(
+        open(file_path, "rb"),
+        as_attachment=True,
+        filename=filename
+    )
 
 
 # ============================================================
