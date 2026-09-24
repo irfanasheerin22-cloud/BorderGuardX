@@ -115,12 +115,14 @@ def preprocess_variants(crop):
 # ============================================================
 # OCR CANDIDATES
 # ============================================================
-
 def ocr_candidates(crop, whitelist=None):
 
     candidates = []
 
-    for variant_name, processed in preprocess_variants(crop):
+    variants = preprocess_variants(crop)
+
+    # Render Free: limit OCR work to first 2 variants
+    for variant_name, processed in variants[:2]:
 
         config = "--psm 7"
 
@@ -130,10 +132,14 @@ def ocr_candidates(crop, whitelist=None):
                 + whitelist
             )
 
-        text = pytesseract.image_to_string(
-            processed,
-            config=config
-        )
+        try:
+            text = pytesseract.image_to_string(
+                processed,
+                config=config,
+                timeout=5
+            )
+        except RuntimeError:
+            continue
 
         text = clean_text(text)
 
