@@ -116,43 +116,44 @@ def preprocess_variants(crop):
 # OCR CANDIDATES
 # ============================================================
 def ocr_candidates(crop, whitelist=None):
-
     candidates = []
 
     variants = preprocess_variants(crop)
 
-    # Render Free: limit OCR work to first 2 variants
-    for variant_name, processed in variants[:2]:
+    # Render Free: use only the first OCR variant
+    if not variants:
+        return candidates
 
-        config = "--psm 7"
+    variant_name, processed = variants[0]
 
-        if whitelist:
-            config += (
-                " -c tessedit_char_whitelist="
-                + whitelist
+    config = "--psm 7"
+
+    if whitelist:
+        config += (
+            " -c tessedit_char_whitelist="
+            + whitelist
+        )
+
+    try:
+        text = pytesseract.image_to_string(
+            processed,
+            config=config,
+            timeout=3
+        )
+    except RuntimeError:
+        return candidates
+
+    text = clean_text(text)
+
+    if text:
+        candidates.append(
+            (
+                variant_name,
+                text
             )
-
-        try:
-            text = pytesseract.image_to_string(
-                processed,
-                config=config,
-                timeout=5
-            )
-        except RuntimeError:
-            continue
-
-        text = clean_text(text)
-
-        if text:
-            candidates.append(
-                (
-                    variant_name,
-                    text
-                )
-            )
+        )
 
     return candidates
-
 
 # ============================================================
 #  PASSPORT NUMBER
