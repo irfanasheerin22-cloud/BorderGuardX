@@ -708,95 +708,220 @@ def extract_place(crop):
 
 def extract_passport_card_fields(image):
 
+    # Resize once for OCR
     card = cv2.resize(
         image,
         (1248, 878),
-        interpolation=cv2.INTER_CUBIC
+        interpolation=cv2.INTER_AREA
     )
 
-    regions = {
-
-        "passport": (
-            870, 250, 1115, 292
-        ),
-
-        "nationality": (
-            515, 260, 635, 300
-        ),
-
-        "surname": (
-            510, 340, 800, 380
-        ),
-
-        "given": (
-            590, 425, 815, 462
-        ),
-
-        "sex": (
-            630, 520, 680, 550
-        ),
-
-        "dob": (
-            735, 510, 930, 555
-        ),
-
-        "place": (
-            595, 585, 850, 625
-        ),
-
-        "issue": (
-            590, 665, 820, 705
-        ),
-
-        "expiry": (
-            875, 665, 1085, 705
-        ),
-    }
-
-    def crop_region(box):
-
-        x1, y1, x2, y2 = box
-
-        return card[
-            y1:y2,
-            x1:x2
-        ]
-
-    passport_number = extract_passport_number(
-        crop_region(regions["passport"])
+    # Convert to grayscale
+    gray = cv2.cvtColor(
+        card,
+        cv2.COLOR_BGR2GRAY
     )
 
-    nationality = extract_three_letters(
-        crop_region(regions["nationality"])
+    # Light thresholding
+    gray = cv2.GaussianBlur(
+        gray,
+        (3, 3),
+        0
     )
 
-    surname = extract_name(
-        crop_region(regions["surname"])
+    _, processed = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY
+        + cv2.THRESH_OTSU
     )
 
-    given_names = extract_name(
-        crop_region(regions["given"])
-    )
+    # ONE OCR CALL ONLY
+    try:
 
-    sex = extract_sex(
-        crop_region(regions["sex"])
-    )
+        text = pytesseract.image_to_string(
+            processed,
+            config="--psm 6",
+            timeout=20
+        )
 
-    date_of_birth = extract_date(
-        crop_region(regions["dob"])
-    )
+    except RuntimeError:
 
-    place_of_birth = extract_place(
-        crop_region(regions["place"])
-    )
+        text = ""
 
-    issue_date = extract_date(
-        crop_region(regions["issue"])
-    )
+    text = clean_text(text)
 
-    expiry_date = extract_date(
-        crop_region(regions["expiry"])
-    )
+    # --------------------------------------------------
+    # DEFAULT VALUES
+    # --------------------------------------------------
+
+    passport_number = ""
+    nationality = ""
+    surname = ""
+    given_names = ""
+    sex = ""
+    date_of_birth = ""
+    place_of_birth = ""
+    issue_date = ""
+    expiry_date = ""
+
+    # --------------------------------------------------
+    # OCR TEXT → FIELDS
+    # --------------------------------------------------
+
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    for line in lines:
+
+        upper = line.upper()
+
+        # Passport number
+        if (
+            "PASSPORT NUMBER" in upper
+            or "PASSPORT NO" in upper
+        ):
+            value = re.sub(
+                r"^.*?(PASSPORT NUMBER|PASSPORT NO\.?)\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            passport_number = (
+                re.sub(
+                    r"[^A-Z0-9]",
+                    "",
+                    value.upper()
+                )
+            )
+
+        # Nationality
+        elif "NATIONALITY" in upper:
+
+            value = re.sub(
+                r"^.*?NATIONALITY\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            nationality = (
+                re.sub(
+                    r"[^A-Z]",
+                    "",
+                    value.upper()
+                )[:3]
+            )
+
+        # Surname
+        elif "SURNAME" in upper:
+
+            value = re.sub(
+                r"^.*?SURNAME\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            surname = value.strip()
+
+        # Given names
+        elif (
+            "GIVEN NAMES" in upper
+            or "GIVEN NAME" in upper
+        ):
+
+            value = re.sub(
+                r"^.*?GIVEN NAMES?\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            given_names = value.strip()
+
+        # Sex
+        elif re.search(
+            r"\bSEX\b",
+            upper
+        ):
+
+            value = re.sub(
+                r"^.*?\bSEX\b\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            sex = value.strip()[:1].upper()
+
+        # Date of birth
+        elif (
+            "DATE OF BIRTH" in upper
+            or "DOB" in upper
+        ):
+
+            value = re.sub(
+                r"^.*?(DATE OF BIRTH|DOB)\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            date_of_birth = value.strip()
+
+        # Place of birth
+        elif (
+            "PLACE OF BIRTH" in upper
+            or "BIRTH PLACE" in upper
+        ):
+
+            value = re.sub(
+                r"^.*?(PLACE OF BIRTH|BIRTH PLACE)\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            place_of_birth = value.strip()
+
+        # Issue date
+        elif (
+            "ISSUE DATE" in upper
+            or "DATE OF ISSUE" in upper
+        ):
+
+            value = re.sub(
+                r"^.*?(ISSUE DATE|DATE OF ISSUE)\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            issue_date = value.strip()
+
+        # Expiry date
+        elif (
+            "EXPIRY DATE" in upper
+            or "EXPIRATION DATE" in upper
+        ):
+
+            value = re.sub(
+                r"^.*?(EXPIRY DATE|EXPIRATION DATE)\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE
+            )
+
+            expiry_date = value.strip()
+
+    # --------------------------------------------------
+    # RETURN STRUCTURED DATA
+    # --------------------------------------------------
 
     return {
 
