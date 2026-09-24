@@ -25,7 +25,11 @@ SECRET_KEY = 'django-insecure-c2#-us9!jc($t9^4182f&l=+#1@arcugik5-wep_f_^p)q&-_^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "borderguardx-web.onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 
 
 # Application definition
