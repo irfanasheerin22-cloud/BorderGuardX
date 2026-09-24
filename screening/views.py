@@ -925,6 +925,7 @@ def home(request):
         filename
     )
 
+
     file_path = os.path.join(
         upload_directory,
         filename
