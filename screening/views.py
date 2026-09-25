@@ -810,7 +810,8 @@ def extract_passport_card_fields(image):
         if (
             "PASSPORT NUMBER" in upper
             or "PASSPORT NO" in upper
-            or upper in ("PASSPORT C", "PASSPORT CARD")
+            or upper.startswith("PASSPORT C")
+            or upper.startswith("PASSPORT")
         ):
 
             # The passport card number is located in the
