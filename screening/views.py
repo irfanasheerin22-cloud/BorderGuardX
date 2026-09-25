@@ -829,32 +829,70 @@ def extract_passport_card_fields(image):
                     value.upper()
                 )
 
-        # Nationality
+                # Nationality
         elif upper == "NATIONALITY":
 
-            value = next_value(i)
+            # OCR may produce a wrong value such as "KKK".
+            # Look at the next few lines for a valid 3-letter
+            # nationality/country code.
 
-            # Prefer a 3-letter nationality code
-            match = re.search(
-                r"\b[A-Z]{3}\b",
-                value.upper()
-            )
+            for j in range(i + 1, min(i + 6, len(lines))):
 
-            if match:
-                nationality = match.group(0)
+                candidate = lines[j].strip().upper()
 
-        # Surname
+                if re.fullmatch(r"[A-Z]{3}", candidate):
+
+                    if candidate in (
+                        "USA",
+                        "GBR",
+                        "CAN",
+                        "AUS",
+                        "IND",
+                        "ARE",
+                        "FRA",
+                        "DEU",
+                        "ITA",
+                        "ESP",
+                        "JPN",
+                        "CHN",
+                        "SGP",
+                        "MYS",
+                    ):
+                        nationality = candidate
+                        break
+               # Surname
         elif upper == "SURNAME":
 
-            value = next_value(i)
+            # OCR may insert noise immediately after the label.
+            # Search the next few lines for a meaningful name.
 
-            if value.upper() not in (
-                "GIVEN NAMES",
-                "SEX",
-                "DATE OF BIRTH",
-                "PLACE OF BIRTH",
-            ):
-                surname = value.strip()
+            for j in range(i + 1, min(i + 6, len(lines))):
+
+                candidate = lines[j].strip()
+
+                if not candidate:
+                    continue
+
+                candidate_upper = candidate.upper()
+
+                # Skip obvious OCR noise / other field labels
+                if candidate_upper in (
+                    "GIVEN NAMES",
+                    "SEX",
+                    "DATE OF BIRTH",
+                    "PLACE OF BIRTH",
+                    "NATIONALITY",
+                ):
+                    continue
+
+                # Skip very short/noisy OCR fragments
+                if len(candidate) < 4:
+                    continue
+
+                # A surname should mainly contain letters/spaces
+                if re.fullmatch(r"[A-Za-z][A-Za-z .'-]*", candidate):
+                    surname = candidate
+                    break
 
         # Given names
         elif (
