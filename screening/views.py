@@ -826,11 +826,7 @@ def extract_passport_card_fields(image):
 
             try:
 
-                number_gray = cv2.cvtColor(
-                    number_crop,
-                    cv2.COLOR_BGR2GRAY
-                )
-
+                number_gray = number_crop
                 number_gray = cv2.resize(
                     number_gray,
                     None,
