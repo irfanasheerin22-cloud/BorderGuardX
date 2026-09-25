@@ -790,7 +790,19 @@ def extract_passport_card_fields(image):
         if line.strip()
     ]
 
-    for line in lines:
+    # OCR often separates field labels and values.
+    # Example:
+    # Surname
+    # ALEXANDER
+    #
+    # So we first detect labels and then read the next useful line.
+
+    def next_value(index):
+        if index + 1 < len(lines):
+            return lines[index + 1].strip()
+        return ""
+
+    for i, line in enumerate(lines):
 
         upper = line.upper()
 
@@ -798,142 +810,128 @@ def extract_passport_card_fields(image):
         if (
             "PASSPORT NUMBER" in upper
             or "PASSPORT NO" in upper
+            or upper in ("PASSPORT C", "PASSPORT CARD")
         ):
-            value = re.sub(
-                r"^.*?(PASSPORT NUMBER|PASSPORT NO\.?)\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            passport_number = (
-                re.sub(
+            # Ignore obvious non-number values
+            if value and value.upper() not in (
+                "NATIONALITY",
+                "SURNAME",
+                "GIVEN NAMES",
+                "SEX",
+                "DATE OF BIRTH",
+                "PLACE OF BIRTH",
+            ):
+                passport_number = re.sub(
                     r"[^A-Z0-9]",
                     "",
                     value.upper()
                 )
-            )
 
         # Nationality
-        elif "NATIONALITY" in upper:
+        elif upper == "NATIONALITY":
 
-            value = re.sub(
-                r"^.*?NATIONALITY\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
+            value = next_value(i)
+
+            # Prefer a 3-letter nationality code
+            match = re.search(
+                r"\b[A-Z]{3}\b",
+                value.upper()
             )
 
-            nationality = (
-                re.sub(
-                    r"[^A-Z]",
-                    "",
-                    value.upper()
-                )[:3]
-            )
+            if match:
+                nationality = match.group(0)
 
         # Surname
-        elif "SURNAME" in upper:
+        elif upper == "SURNAME":
 
-            value = re.sub(
-                r"^.*?SURNAME\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            surname = value.strip()
+            if value.upper() not in (
+                "GIVEN NAMES",
+                "SEX",
+                "DATE OF BIRTH",
+                "PLACE OF BIRTH",
+            ):
+                surname = value.strip()
 
         # Given names
         elif (
-            "GIVEN NAMES" in upper
-            or "GIVEN NAME" in upper
+            upper == "GIVEN NAMES"
+            or upper == "GIVEN NAME"
         ):
 
-            value = re.sub(
-                r"^.*?GIVEN NAMES?\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            given_names = value.strip()
+            if value.upper() not in (
+                "SEX",
+                "DATE OF BIRTH",
+                "PLACE OF BIRTH",
+            ):
+                given_names = value.strip()
 
         # Sex
-        elif re.search(
-            r"\bSEX\b",
-            upper
-        ):
+        elif upper == "SEX":
 
-            value = re.sub(
-                r"^.*?\bSEX\b\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
+            value = next_value(i)
+
+            match = re.search(
+                r"\b([MF])\b",
+                value.upper()
             )
 
-            sex = value.strip()[:1].upper()
+            if match:
+                sex = match.group(1)
 
         # Date of birth
         elif (
-            "DATE OF BIRTH" in upper
-            or "DOB" in upper
+            upper == "DATE OF BIRTH"
+            or upper == "DOB"
         ):
 
-            value = re.sub(
-                r"^.*?(DATE OF BIRTH|DOB)\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            date_of_birth = value.strip()
+            if re.search(
+                r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
+                value.upper()
+            ):
+                date_of_birth = value.strip()
 
         # Place of birth
         elif (
-            "PLACE OF BIRTH" in upper
-            or "BIRTH PLACE" in upper
+            upper == "PLACE OF BIRTH"
+            or upper == "BIRTH PLACE"
         ):
 
-            value = re.sub(
-                r"^.*?(PLACE OF BIRTH|BIRTH PLACE)\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            place_of_birth = value.strip()
+            if value:
+                place_of_birth = value.strip()
 
         # Issue date
         elif (
-            "ISSUE DATE" in upper
-            or "DATE OF ISSUE" in upper
+            upper == "ISSUE DATE"
+            or upper == "DATE OF ISSUE"
+            or upper == "ISSUED ON"
         ):
 
-            value = re.sub(
-                r"^.*?(ISSUE DATE|DATE OF ISSUE)\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            issue_date = value.strip()
+            if value:
+                issue_date = value.strip()
 
         # Expiry date
         elif (
-            "EXPIRY DATE" in upper
-            or "EXPIRATION DATE" in upper
+            upper == "EXPIRY DATE"
+            or upper == "EXPIRATION DATE"
+            or upper == "EXPIRES ON"
         ):
 
-            value = re.sub(
-                r"^.*?(EXPIRY DATE|EXPIRATION DATE)\s*[:\-]?\s*",
-                "",
-                line,
-                flags=re.IGNORECASE
-            )
+            value = next_value(i)
 
-            expiry_date = value.strip()
-
+            if value:
+                expiry_date = value.strip()
     # --------------------------------------------------
     # RETURN STRUCTURED DATA
     # --------------------------------------------------
