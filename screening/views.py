@@ -919,15 +919,18 @@ def extract_passport_card_fields(image):
         # Sex
         elif upper == "SEX":
 
-            value = next_value(i)
+            # OCR may place "Date of Birth" before the actual sex value.
+            for j in range(i + 1, min(i + 8, len(lines))):
 
-            match = re.search(
-                r"\b([MF])\b",
-                value.upper()
-            )
+                candidate = lines[j].strip().upper()
 
-            if match:
-                sex = match.group(1)
+                if candidate in ("M", "F"):
+                    sex = candidate
+                    break
+
+                # Ignore the next field label and OCR noise
+                if candidate == "PLACE OF BIRTH":
+                    break
 
         # Date of birth
         elif (
@@ -935,25 +938,23 @@ def extract_passport_card_fields(image):
             or upper == "DOB"
         ):
 
-            value = next_value(i)
+            # Search several following OCR lines because noise
+            # may appear between the label and the actual date.
+            for j in range(i + 1, min(i + 8, len(lines))):
 
-            if re.search(
-                r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
-                value.upper()
-            ):
-                date_of_birth = value.strip()
+                candidate = lines[j].strip().upper()
 
-        # Place of birth
-        elif (
-            upper == "PLACE OF BIRTH"
-            or upper == "BIRTH PLACE"
-        ):
+                match = re.search(
+                    r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
+                    candidate
+                )
 
-            value = next_value(i)
+                if match:
+                    date_of_birth = match.group(0)
+                    break
 
-            if value:
-                place_of_birth = value.strip()
-
+                if candidate == "PLACE OF BIRTH":
+                    break
         # Issue date
         elif (
             upper == "ISSUE DATE"
