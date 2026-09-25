@@ -739,17 +739,28 @@ def extract_passport_card_fields(image):
     # ONE OCR CALL ONLY
     try:
 
+        print("========== TESSERACT DIAGNOSTIC ==========")
+        print("Tesseract command:", pytesseract.pytesseract.tesseract_cmd)
+        print("Tesseract version:", pytesseract.get_tesseract_version())
+        print("Processed image shape:", processed.shape)
+        print("Processed image mean:", processed.mean())
+        print("==========================================")
+
         text = pytesseract.image_to_string(
             processed,
-            config="--psm 6",
+            config="--psm 11",
+            lang="eng",
             timeout=20
         )
 
-    except RuntimeError:
+    except Exception as e:
+
+        print("========== OCR ERROR ==========")
+        print(type(e).__name__, str(e))
+        print("===============================")
 
         text = ""
-
-    text = clean_text(text)
+        text = clean_text(text)
 
     print("========== OCR RAW TEXT ==========")
     print(text)
