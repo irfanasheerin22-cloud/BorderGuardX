@@ -820,12 +820,11 @@ def extract_passport_card_fields(image):
 
             h, w = processed.shape[:2]
 
-            x1 = int(w * 0.68)
-            x2 = int(w * 0.96)
+            x1 = int(w * 0.70)
+            x2 = int(w * 0.89)
 
-            y1 = int(h * 0.48)
-            y2 = int(h * 0.62)
-
+            y1 = int(h * 0.28)
+            y2 = int(h * 0.33)           
             number_crop = processed[y1:y2, x1:x2]
 
             try:
