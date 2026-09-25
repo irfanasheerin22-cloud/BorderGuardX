@@ -806,29 +806,75 @@ def extract_passport_card_fields(image):
 
         upper = line.upper()
 
-        # Passport number
+                # Passport number
         if (
             "PASSPORT NUMBER" in upper
             or "PASSPORT NO" in upper
             or upper in ("PASSPORT C", "PASSPORT CARD")
         ):
-            value = next_value(i)
 
-            # Ignore obvious non-number values
-            if value and value.upper() not in (
-                "NATIONALITY",
-                "SURNAME",
-                "GIVEN NAMES",
-                "SEX",
-                "DATE OF BIRTH",
-                "PLACE OF BIRTH",
-            ):
-                passport_number = re.sub(
-                    r"[^A-Z0-9]",
-                    "",
-                    value.upper()
-                )
+            passport_parts = []
 
+            # OCR may split the passport number across several lines.
+            # Example:
+            # Passport C,
+            # NO.
+            # Pas
+            # USA
+            # 83308:
+            # 80
+            # Surname
+
+            for j in range(i + 1, min(i + 12, len(lines))):
+
+                candidate = lines[j].strip().upper()
+
+                if not candidate:
+                    continue
+
+                # Stop when the next major field begins.
+                if candidate in (
+                    "SURNAME",
+                    "GIVEN NAMES",
+                    "GIVEN NAME",
+                    "SEX",
+                    "DATE OF BIRTH",
+                    "PLACE OF BIRTH",
+                ):
+                    break
+
+                # Ignore nationality and obvious OCR words.
+                if candidate in (
+                    "USA",
+                    "IND",
+                    "GBR",
+                    "CAN",
+                    "AUS",
+                    "PAS",
+                    "NO",
+                ):
+                    continue
+
+                # Keep only candidates containing digits.
+                if re.search(r"\d", candidate):
+
+                    cleaned = re.sub(
+                        r"[^A-Z0-9]",
+                        "",
+                        candidate
+                    )
+
+                    # Keep fragments that contain mostly digits.
+                    if (
+                        cleaned
+                        and sum(c.isdigit() for c in cleaned)
+                        >= len(cleaned) * 0.6
+                    ):
+                        passport_parts.append(cleaned)
+
+            if passport_parts:
+
+                passport_number = "".join(passport_parts)
                 # Nationality
         elif upper == "NATIONALITY":
 
