@@ -1005,10 +1005,18 @@ def extract_passport_card_fields(image):
             or upper == "ISSUED ON"
         ):
 
-            value = next_value(i)
+            for j in range(i + 1, min(i + 10, len(lines))):
 
-            if value:
-                issue_date = value.strip()
+                candidate = lines[j].strip().upper()
+
+                match = re.search(
+                    r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
+                    candidate
+                )
+
+                if match:
+                    issue_date = match.group(0)
+                    break
 
         # Expiry date
         elif (
