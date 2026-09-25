@@ -806,7 +806,7 @@ def extract_passport_card_fields(image):
 
         upper = line.upper()
 
-                        # Passport number
+        # Passport number
         if (
             "PASSPORT NUMBER" in upper
             or "PASSPORT NO" in upper
@@ -814,43 +814,44 @@ def extract_passport_card_fields(image):
             or upper.startswith("PASSPORT")
         ):
 
-            # The passport card number is located in the
-            # upper-right area of this passport card.
-            # Use a focused OCR crop instead of noisy full-page OCR.
-
             h, w = processed.shape[:2]
 
-            x1 = int(w * 0.70)
-            x2 = int(w * 0.89)
+            x1 = int(w * 0.69)
+            x2 = int(w * 0.90)
 
-            y1 = int(h * 0.28)
-            y2 = int(h * 0.33)           
+            y1 = int(h * 0.245)
+            y2 = int(h * 0.337)
+
             number_crop = processed[y1:y2, x1:x2]
 
             try:
 
-                number_crop = cv2.resize(
+                number_gray = cv2.cvtColor(
                     number_crop,
+                    cv2.COLOR_BGR2GRAY
+                )
+
+                number_gray = cv2.resize(
+                    number_gray,
                     None,
-                    fx=4,
-                    fy=4,
+                    fx=5,
+                    fy=5,
                     interpolation=cv2.INTER_CUBIC
                 )
 
                 number_text = pytesseract.image_to_string(
-                    number_crop,
+                    number_gray,
                     config="--psm 8 -c tessedit_char_whitelist=0123456789",
                     lang="eng",
                     timeout=20
                 )
 
-                number_text = number_text.upper().strip()
+                number_text = number_text.strip()
 
                 print("========== PASSPORT NUMBER OCR ==========")
                 print(number_text)
                 print("=========================================")
 
-                # Passport Card No. contains 9 digits.
                 matches = re.findall(
                     r"\b\d{9}\b",
                     number_text
@@ -860,7 +861,6 @@ def extract_passport_card_fields(image):
                     passport_number = matches[0]
 
                 else:
-                    # Remove OCR punctuation/spaces and try again.
                     cleaned_number = re.sub(
                         r"[^0-9]",
                         "",
@@ -873,6 +873,8 @@ def extract_passport_card_fields(image):
             except Exception as e:
 
                 print("Passport number OCR error:", e)
+
+        # Nationality
 
         # Nationality
         elif upper == "NATIONALITY":
