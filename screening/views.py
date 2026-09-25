@@ -870,14 +870,8 @@ def extract_passport_card_fields(image):
 
                 print("Passport number OCR error:", e)
 
-        # Nationality
-
-        # Nationality
+                # Nationality
         elif upper == "NATIONALITY":
-
-            # OCR may produce a wrong value such as "KKK".
-            # Look at the next few lines for a valid 3-letter
-            # nationality/country code.
 
             for j in range(i + 1, min(i + 6, len(lines))):
 
@@ -903,6 +897,7 @@ def extract_passport_card_fields(image):
                     ):
                         nationality = candidate
                         break
+
         # Surname
         elif upper == "SURNAME":
 
@@ -916,7 +911,7 @@ def extract_passport_card_fields(image):
                 if not candidate:
                     continue
 
-                # Stop when the next field begins
+                # Stop at the next field
                 if candidate_upper in (
                     "GIVEN NAMES",
                     "GIVEN NAME",
@@ -931,20 +926,51 @@ def extract_passport_card_fields(image):
                 if len(candidate) < 5:
                     continue
 
-                # Accept only name-like text
+                # Keep only alphabetic/name-like text
                 if re.fullmatch(
                     r"[A-Za-z][A-Za-z .'-]*",
                     candidate
                 ):
+
+                    # Ignore obvious OCR noise
+                    letters_only = re.sub(
+                        r"[^A-Za-z]",
+                        "",
+                        candidate
+                    )
+
+                    if len(letters_only) < 5:
+                        continue
+
                     candidates.append(candidate)
 
             if candidates:
 
-                # Prefer the longest clean alphabetic candidate.
-                surname = max(
-                    candidates,
-                    key=lambda x: len(re.sub(r"[^A-Za-z]", "", x))
-                )        # Given names
+                # Prefer a clean uppercase surname.
+                uppercase_candidates = [
+                    c for c in candidates
+                    if c == c.upper()
+                ]
+
+                if uppercase_candidates:
+
+                    surname = max(
+                        uppercase_candidates,
+                        key=lambda x: len(
+                            re.sub(r"[^A-Za-z]", "", x)
+                        )
+                    )
+
+                else:
+
+                    surname = max(
+                        candidates,
+                        key=lambda x: len(
+                            re.sub(r"[^A-Za-z]", "", x)
+                        )
+                    )
+
+        # Given names
         elif (
             upper == "GIVEN NAMES"
             or upper == "GIVEN NAME"
@@ -962,7 +988,6 @@ def extract_passport_card_fields(image):
         # Sex
         elif upper == "SEX":
 
-            # OCR may place "Date of Birth" before the actual sex value.
             for j in range(i + 1, min(i + 8, len(lines))):
 
                 candidate = lines[j].strip().upper()
@@ -971,17 +996,16 @@ def extract_passport_card_fields(image):
                     sex = candidate
                     break
 
-                # Ignore the next field label and OCR noise
                 if candidate == "PLACE OF BIRTH":
                     break
 
-                # Date of birth
+        # Date of birth
         elif (
             upper == "DATE OF BIRTH"
             or upper == "DOB"
         ):
 
-            for j in range(i + 1, min(i + 10, len(lines))):
+            for j in range(i + 1, min(i + 15, len(lines))):
 
                 candidate = lines[j].strip().upper()
 
@@ -1003,7 +1027,6 @@ def extract_passport_card_fields(image):
 
                 candidate = lines[j].strip().upper()
 
-                # Stop at the next known field
                 if candidate in (
                     "ISSUE DATE",
                     "DATE OF ISSUE",
@@ -1014,7 +1037,6 @@ def extract_passport_card_fields(image):
                 ):
                     break
 
-                # Remove obvious OCR noise
                 candidate = re.sub(
                     r"[^A-Z., ]",
                     "",
@@ -1026,7 +1048,6 @@ def extract_passport_card_fields(image):
                 if len(candidate) < 3:
                     continue
 
-                # Known value from the demo passport
                 if candidate in (
                     "TEXAS USA",
                     "TEXAS, USA",
@@ -1036,7 +1057,6 @@ def extract_passport_card_fields(image):
                     place_of_birth = "TEXAS, U.S.A."
                     break
 
-                # General place name
                 if len(candidate) <= 30:
                     place_of_birth = candidate
                     break
@@ -1053,7 +1073,6 @@ def extract_passport_card_fields(image):
 
                 candidate = lines[j].strip().upper()
 
-                # OCR may read 10 as 0
                 if re.fullmatch(
                     r"0\s+[A-Z]{3}\s+\d{4}",
                     candidate
@@ -1071,7 +1090,7 @@ def extract_passport_card_fields(image):
                     )
                     break
 
-               # Expiry date
+        # Expiry date
         elif (
             upper == "EXPIRY DATE"
             or upper == "EXPIRATION DATE"
@@ -1079,10 +1098,16 @@ def extract_passport_card_fields(image):
             or "EXPIRES ON" in upper
         ):
 
-            for j in range(i + 1, min(i + 8, len(lines))):
+            for j in range(i + 1, min(i + 10, len(lines))):
 
                 candidate = lines[j].strip().upper()
 
+                print(
+                    "EXPIRY CANDIDATE:",
+                    repr(candidate)
+                )
+
+                # OCR may read the year as 2 digits
                 match_short = re.search(
                     r"\b(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\b",
                     candidate
@@ -1104,13 +1129,51 @@ def extract_passport_card_fields(image):
                 )
 
                 if match:
+
                     expiry_date = normalize_date_text(
                         match.group(0)
                     )
+
+                    break
+    # --------------------------------------------------
+    # FALLBACK EXPIRY DATE EXTRACTION
+    # --------------------------------------------------
+
+    if not expiry_date:
+
+        for raw_line in lines:
+
+            candidate = raw_line.strip().upper()
+
+            # OCR may return a 2-digit year
+            match_short = re.search(
+                r"\b(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\b",
+                candidate
+            )
+
+            if match_short:
+
+                day = match_short.group(1)
+                month = match_short.group(2)
+                year = match_short.group(3)
+
+                normalized = normalize_date_text(
+                    f"{day} {month} 20{year}"
+                )
+
+                if normalized:
+                    expiry_date = normalized
+
+                    print(
+                        "FALLBACK EXPIRY DATE:",
+                        expiry_date
+                    )
+
                     break
 
     print("DEBUG EXPIRY DATE:", expiry_date)
 
+        
     # --------------------------------------------------
     # RETURN STRUCTURED DATA
     # --------------------------------------------------
