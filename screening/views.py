@@ -860,41 +860,48 @@ def extract_passport_card_fields(image):
                     ):
                         nationality = candidate
                         break
-               # Surname
+        # Surname
         elif upper == "SURNAME":
 
-            # OCR may insert noise immediately after the label.
-            # Search the next few lines for a meaningful name.
+            candidates = []
 
-            for j in range(i + 1, min(i + 6, len(lines))):
+            for j in range(i + 1, min(i + 7, len(lines))):
 
                 candidate = lines[j].strip()
+                candidate_upper = candidate.upper()
 
                 if not candidate:
                     continue
 
-                candidate_upper = candidate.upper()
-
-                # Skip obvious OCR noise / other field labels
+                # Stop when the next field begins
                 if candidate_upper in (
                     "GIVEN NAMES",
+                    "GIVEN NAME",
                     "SEX",
                     "DATE OF BIRTH",
                     "PLACE OF BIRTH",
                     "NATIONALITY",
                 ):
-                    continue
-
-                # Skip very short/noisy OCR fragments
-                if len(candidate) < 4:
-                    continue
-
-                # A surname should mainly contain letters/spaces
-                if re.fullmatch(r"[A-Za-z][A-Za-z .'-]*", candidate):
-                    surname = candidate
                     break
 
-        # Given names
+                # Ignore very short OCR fragments
+                if len(candidate) < 5:
+                    continue
+
+                # Accept only name-like text
+                if re.fullmatch(
+                    r"[A-Za-z][A-Za-z .'-]*",
+                    candidate
+                ):
+                    candidates.append(candidate)
+
+            if candidates:
+
+                # Prefer the longest clean alphabetic candidate.
+                surname = max(
+                    candidates,
+                    key=lambda x: len(re.sub(r"[^A-Za-z]", "", x))
+                )        # Given names
         elif (
             upper == "GIVEN NAMES"
             or upper == "GIVEN NAME"
