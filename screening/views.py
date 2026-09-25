@@ -829,9 +829,17 @@ def extract_passport_card_fields(image):
 
             try:
 
+                number_crop = cv2.resize(
+                    number_crop,
+                    None,
+                    fx=4,
+                    fy=4,
+                    interpolation=cv2.INTER_CUBIC
+                )
+
                 number_text = pytesseract.image_to_string(
                     number_crop,
-                    config="--psm 7",
+                    config="--psm 8 -c tessedit_char_whitelist=0123456789",
                     lang="eng",
                     timeout=20
                 )
@@ -842,7 +850,7 @@ def extract_passport_card_fields(image):
                 print(number_text)
                 print("=========================================")
 
-                # Passport Card No. in the demo document is 9 digits.
+                # Passport Card No. contains 9 digits.
                 matches = re.findall(
                     r"\b\d{9}\b",
                     number_text
@@ -864,7 +872,9 @@ def extract_passport_card_fields(image):
 
             except Exception as e:
 
-                print("Passport number OCR error:", e)                # Nationality
+                print("Passport number OCR error:", e)
+
+        # Nationality
         elif upper == "NATIONALITY":
 
             # OCR may produce a wrong value such as "KKK".
