@@ -1071,7 +1071,7 @@ def extract_passport_card_fields(image):
                     )
                     break
 
-        # Expiry date
+               # Expiry date
         elif (
             upper == "EXPIRY DATE"
             or upper == "EXPIRATION DATE"
@@ -1083,7 +1083,6 @@ def extract_passport_card_fields(image):
 
                 candidate = lines[j].strip().upper()
 
-                # OCR may return a 2-digit year
                 match_short = re.search(
                     r"\b(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\b",
                     candidate
@@ -1109,6 +1108,9 @@ def extract_passport_card_fields(image):
                         match.group(0)
                     )
                     break
+
+    print("DEBUG EXPIRY DATE:", expiry_date)
+
     # --------------------------------------------------
     # RETURN STRUCTURED DATA
     # --------------------------------------------------
