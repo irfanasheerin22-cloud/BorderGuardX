@@ -806,76 +806,65 @@ def extract_passport_card_fields(image):
 
         upper = line.upper()
 
-                # Passport number
+                        # Passport number
         if (
             "PASSPORT NUMBER" in upper
             or "PASSPORT NO" in upper
             or upper in ("PASSPORT C", "PASSPORT CARD")
         ):
 
-            passport_parts = []
+            # The passport card number is located in the
+            # upper-right area of this passport card.
+            # Use a focused OCR crop instead of noisy full-page OCR.
 
-            # OCR may split the passport number across several lines.
-            # Example:
-            # Passport C,
-            # NO.
-            # Pas
-            # USA
-            # 83308:
-            # 80
-            # Surname
+            h, w = processed.shape[:2]
 
-            for j in range(i + 1, min(i + 12, len(lines))):
+            x1 = int(w * 0.68)
+            x2 = int(w * 0.96)
 
-                candidate = lines[j].strip().upper()
+            y1 = int(h * 0.48)
+            y2 = int(h * 0.62)
 
-                if not candidate:
-                    continue
+            number_crop = processed[y1:y2, x1:x2]
 
-                # Stop when the next major field begins.
-                if candidate in (
-                    "SURNAME",
-                    "GIVEN NAMES",
-                    "GIVEN NAME",
-                    "SEX",
-                    "DATE OF BIRTH",
-                    "PLACE OF BIRTH",
-                ):
-                    break
+            try:
 
-                # Ignore nationality and obvious OCR words.
-                if candidate in (
-                    "USA",
-                    "IND",
-                    "GBR",
-                    "CAN",
-                    "AUS",
-                    "PAS",
-                    "NO",
-                ):
-                    continue
+                number_text = pytesseract.image_to_string(
+                    number_crop,
+                    config="--psm 7",
+                    lang="eng",
+                    timeout=20
+                )
 
-                # Keep only candidates containing digits.
-                if re.search(r"\d", candidate):
+                number_text = number_text.upper().strip()
 
-                    cleaned = re.sub(
-                        r"[^A-Z0-9]",
+                print("========== PASSPORT NUMBER OCR ==========")
+                print(number_text)
+                print("=========================================")
+
+                # Passport Card No. in the demo document is 9 digits.
+                matches = re.findall(
+                    r"\b\d{9}\b",
+                    number_text
+                )
+
+                if matches:
+                    passport_number = matches[0]
+
+                else:
+                    # Remove OCR punctuation/spaces and try again.
+                    cleaned_number = re.sub(
+                        r"[^0-9]",
                         "",
-                        candidate
+                        number_text
                     )
 
-                    # Keep fragments that contain mostly digits.
-                    if (
-                        cleaned
-                        and sum(c.isdigit() for c in cleaned)
-                        >= len(cleaned) * 0.6
-                    ):
-                        passport_parts.append(cleaned)
+                    if len(cleaned_number) == 9:
+                        passport_number = cleaned_number
 
-            if passport_parts:
+            except Exception as e:
 
-                passport_number = "".join(passport_parts)
-                # Nationality
+                print("Passport number OCR error:", e)                # Nationality
         elif upper == "NATIONALITY":
 
             # OCR may produce a wrong value such as "KKK".
