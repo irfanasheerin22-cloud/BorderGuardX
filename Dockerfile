@@ -18,6 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Confirm OCR and OpenCV are available during Docker build
+RUN tesseract --version
+RUN python -c "import cv2; print('OpenCV:', cv2.__version__); print('CascadeClassifier:', hasattr(cv2, 'CascadeClassifier'))"
+RUN python -c "import pytesseract; print('Tesseract path:', pytesseract.pytesseract.tesseract_cmd); print(pytesseract.get_tesseract_version())"
+
 RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 10000
