@@ -750,7 +750,7 @@ def extract_passport_card_fields(image):
             processed,
             config="--psm 11",
             lang="eng",
-            timeout=20
+            timeout=60
         )
 
     except Exception as e:
