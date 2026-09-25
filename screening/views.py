@@ -751,6 +751,10 @@ def extract_passport_card_fields(image):
 
     text = clean_text(text)
 
+    print("========== OCR RAW TEXT ==========")
+    print(text)
+    print("==================================")
+
     # --------------------------------------------------
     # DEFAULT VALUES
     # --------------------------------------------------
