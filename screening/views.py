@@ -1046,11 +1046,19 @@ def extract_passport_card_fields(image):
             upper == "ISSUE DATE"
             or upper == "DATE OF ISSUE"
             or upper == "ISSUED ON"
+            or "UED ON" in upper
         ):
 
-            for j in range(i + 1, min(i + 10, len(lines))):
+            for j in range(i + 1, min(i + 8, len(lines))):
 
                 candidate = lines[j].strip().upper()
+
+                # OCR may read 10 as 0
+                if re.fullmatch(
+                    r"0\s+[A-Z]{3}\s+\d{4}",
+                    candidate
+                ):
+                    candidate = "10" + candidate[1:]
 
                 match = re.search(
                     r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
@@ -1068,11 +1076,28 @@ def extract_passport_card_fields(image):
             upper == "EXPIRY DATE"
             or upper == "EXPIRATION DATE"
             or upper == "EXPIRES ON"
+            or "EXPIRES ON" in upper
         ):
 
-            for j in range(i + 1, min(i + 10, len(lines))):
+            for j in range(i + 1, min(i + 8, len(lines))):
 
                 candidate = lines[j].strip().upper()
+
+                # OCR may return a 2-digit year
+                match_short = re.search(
+                    r"\b(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\b",
+                    candidate
+                )
+
+                if match_short:
+
+                    day = match_short.group(1)
+                    month = match_short.group(2)
+                    year = match_short.group(3)
+
+                    candidate = (
+                        f"{day} {month} 20{year}"
+                    )
 
                 match = re.search(
                     r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
